@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0f1117;
+  --surface: #181a23;
+  --surface-2: #1e2130;
+  --border: #2a2d3e;
+  --text: #e4e5eb;
+  --text-muted: #8b8d9e;
+  --accent: #6c5ce7;
+  --accent-light: #a29bfe;
+  --green: #00cec9;
+  --green-muted: rgba(0, 206, 201, 0.15);
+  --orange: #fdcb6e;
+  --orange-muted: rgba(253, 203, 110, 0.15);
+  --red: #ff6b6b;
+}
+
+@theme inline {
+  --font-sans: var(--font-dm-sans);
+  --font-mono: var(--font-dm-mono);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), sans-serif;
+}
+
+input[type="text"],
+input[type="number"] {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.6rem;
+  color: var(--text);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.82rem;
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow-x: auto;
+  outline: none;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus {
+  border-color: var(--accent);
+}
+
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Section dividers (title + rule) — accent title so bands read apart from in-card headings */
+.section-divider-title {
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+
+.section-divider-line {
+  flex: 1 1 0%;
+  min-width: 2rem;
+  height: 2px;
+  align-self: center;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-light) 55%, transparent),
+    var(--border) 72%
+  );
+}
+
+/* Same band UI as .section-divider-title; only the label color changes */
+.section-divider-title.section-divider-title--orange {
+  color: var(--orange);
+}
+
+/* Card / panel section titles */
+.card-section-heading {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.card-section-heading-accent {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+
+.card-subsection-heading {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.comparison-block-heading {
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
