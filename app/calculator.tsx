@@ -193,7 +193,7 @@ export default function Calculator() {
       <main className="flex-1 overflow-x-hidden">
         <div className="mx-auto max-w-5xl px-6 py-8">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold tracking-tight">Forge Total Offer Visualizer</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Forge Offer Visualizer</h1>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
               See your full Forge offer — cash plus equity, today and at exit
             </p>
