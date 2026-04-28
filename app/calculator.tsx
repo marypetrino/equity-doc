@@ -47,20 +47,13 @@ interface Inputs {
   vestYears: number;
   currentVal: number;
   currentFds: number;
-  dilutionPct: number;
 }
 
 function compute(inputs: Inputs) {
-  const { base, grant, strike, vestYears, currentVal, currentFds, dilutionPct } = inputs;
-  const dilution = dilutionPct / 100;
+  const { base, grant, strike, vestYears, currentVal, currentFds } = inputs;
 
-  // Pre-dilution: "Today" uses preferred share price as the basis (no dilution applied)
   const ppsPreferred = currentFds > 0 ? currentVal / currentFds : 0;
   const ownershipCurrent = currentFds > 0 ? grant / currentFds : 0;
-
-  // Post-dilution: exits use fully-diluted FDS (more shares exist by then)
-  const fdsAtExit = dilution < 1 ? currentFds / (1 - dilution) : currentFds;
-  const ownershipAtExit = fdsAtExit > 0 ? grant / fdsAtExit : 0;
 
   function makeScenario(name: string, val: number, fds: number, isCurrent: boolean): Scenario {
     const pps = fds > 0 ? val / fds : 0;
@@ -82,12 +75,13 @@ function compute(inputs: Inputs) {
     };
   }
 
-  // Today uses currentFds (no dilution). Exits use fdsAtExit (full dilution).
+  // All scenarios use currentFds — exit values are pre-dilution paper figures.
+  // Real exit dilution is called out in the glossary instead of modeled here.
   const current = makeScenario("Today", currentVal, currentFds, true);
   const exitScenarios = [
-    makeScenario("2×", currentVal * 2, fdsAtExit, false),
-    makeScenario("5×", currentVal * 5, fdsAtExit, false),
-    makeScenario("10×", currentVal * 10, fdsAtExit, false),
+    makeScenario("2×", currentVal * 2, currentFds, false),
+    makeScenario("5×", currentVal * 5, currentFds, false),
+    makeScenario("10×", currentVal * 10, currentFds, false),
   ];
 
   return {
@@ -95,7 +89,6 @@ function compute(inputs: Inputs) {
     exitScenarios,
     ppsPreferred,
     ownershipCurrent,
-    ownershipAtExit,
   };
 }
 
@@ -106,7 +99,6 @@ export default function Calculator() {
   const [vestYears, setVestYears] = useState("4");
   const [currentVal, setCurrentVal] = useState("500000000");
   const [currentFds, setCurrentFds] = useState("12044242");
-  const [dilutionPct, setDilutionPct] = useState("20");
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [tableOpen, setTableOpen] = useState(false);
@@ -130,9 +122,8 @@ export default function Calculator() {
       vestYears: parse(vestYears),
       currentVal: parse(currentVal),
       currentFds: parse(currentFds),
-      dilutionPct: parse(dilutionPct),
     }),
-    [base, grant, strike, vestYears, currentVal, currentFds, dilutionPct]
+    [base, grant, strike, vestYears, currentVal, currentFds]
   );
 
   const {
@@ -140,7 +131,6 @@ export default function Calculator() {
     exitScenarios,
     ppsPreferred,
     ownershipCurrent,
-    ownershipAtExit,
   } = useMemo(() => compute(inputs), [inputs]);
 
   const allScenarios = [current, ...exitScenarios];
@@ -169,14 +159,6 @@ export default function Calculator() {
             <Field label="Vest Period" value={vestYears} onChange={setVestYears} suffix="yr" fillWidth info={INFO.vestPeriod} />
             <Field label="Current Valuation" value={currentVal} onChange={setCurrentVal} prefix="$" commas fillWidth info={INFO.currentValuation} />
             <Field label="Current FD Shares" value={currentFds} onChange={setCurrentFds} commas fillWidth info={INFO.currentFds} />
-            <Field
-              label="Est. Dilution to Exit"
-              value={dilutionPct}
-              onChange={setDilutionPct}
-              suffix="%"
-              fillWidth
-              info={`Your ownership % shrinks as the company raises more rounds. ${inputs.dilutionPct}% means your slice is ${(100 - inputs.dilutionPct).toFixed(0)}% of what it is today by the time of exit. We apply this consistently to today's value and all exit scenarios.`}
-            />
           </div>
         </aside>
       ) : (
@@ -215,6 +197,9 @@ export default function Calculator() {
               </li>
               <li>
                 <span className="font-semibold text-[var(--text)]">Grant value.</span> What your shares are worth, minus what you paid for them. Paper money until exit.
+              </li>
+              <li>
+                <span className="font-semibold text-[var(--text)]">Dilution.</span> Future fundraising rounds will issue more shares, shrinking your slice. The exit numbers here are pre-dilution paper values — expect some erosion (typically 10–25%) by the time of any actual payout.
               </li>
             </ul>
           </section>
@@ -289,29 +274,20 @@ export default function Calculator() {
                   ~{Math.round(inputs.grant / inputs.vestYears).toLocaleString()} shares (~{fmtK(current.grantValue / inputs.vestYears)}) per year
                 </div>
               )}
-              <p className="mt-4 text-[0.7rem] leading-relaxed text-[var(--text-muted)]">
-                Today's value uses the current preferred share price. Exit scenarios below apply the dilution % you set — by exit, more shares typically exist, so your slice of each new dollar is smaller.
-              </p>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Stat
                 label="Exercise Cost"
                 value={fmtK(inputs.grant * inputs.strike)}
                 sub="Real cash you spend before any payout"
               />
               <Stat
-                label="Ownership Today"
+                label="Your Ownership"
                 value={pct(ownershipCurrent, 3)}
-                sub="Pre-dilution"
+                sub="Of fully-diluted shares today"
                 color="var(--accent-light)"
-              />
-              <Stat
-                label="Ownership at Exit"
-                value={pct(ownershipAtExit, 3)}
-                sub={`After ${inputs.dilutionPct}% dilution`}
-                color="var(--orange)"
               />
             </div>
           </section>
@@ -374,8 +350,7 @@ export default function Calculator() {
                 }}
               />
               <p className="mt-4 text-[0.72rem] leading-relaxed text-[var(--text-muted)]">
-                <span className="font-semibold text-[var(--text)]">Why 2× exit isn&apos;t 2× of today&apos;s equity:</span>{" "}
-                Today shows pre-dilution paper value. Exit scenarios apply your {inputs.dilutionPct}% expected dilution — by exit, more total shares typically exist, so doubling the company&apos;s value doesn&apos;t double your share. The visible drag from Today → 2× is the dilution cost; from there, each additional doubling scales cleanly.
+                Exit values are pre-dilution. Future fundraising rounds will issue more shares before any payout — see &quot;Dilution&quot; in How Your Offer Works above.
               </p>
             </div>
           </section>
