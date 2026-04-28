@@ -198,9 +198,6 @@ export default function Calculator() {
               <li>
                 <span className="font-semibold text-[var(--text)]">Grant value.</span> What your shares are worth, minus what you paid for them. Paper money until exit.
               </li>
-              <li>
-                <span className="font-semibold text-[var(--text)]">Dilution.</span> Future fundraising rounds will issue more shares, shrinking your slice. The exit numbers here are pre-dilution paper values — expect some erosion (typically 10–25%) by the time of any actual payout.
-              </li>
             </ul>
           </section>
 
@@ -356,7 +353,7 @@ export default function Calculator() {
                 }}
               />
               <p className="mt-4 text-[0.72rem] leading-relaxed text-[var(--text-muted)]">
-                Exit values are pre-dilution. Future fundraising rounds will issue more shares before any payout — see &quot;Dilution&quot; in How Your Offer Works above.
+                Exit values are pre-dilution. Future fundraising rounds will issue more shares before any payout — typically eroding per-share value by 10–25% before exit.
               </p>
             </div>
           </section>
