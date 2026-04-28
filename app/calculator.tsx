@@ -190,10 +190,10 @@ export default function Calculator() {
                 <span className="font-semibold text-[var(--text)]">Annual cash.</span> Your guaranteed base salary.
               </li>
               <li>
-                <span className="font-semibold text-[var(--text)]">Shares granted.</span>{" "}How many shares you&apos;ll earn over time.
+                <span className="font-semibold text-[var(--text)]">Options granted.</span>{" "}How many options you&apos;ll earn over time. Each one is the right to buy a share at the strike price.
               </li>
               <li>
-                <span className="font-semibold text-[var(--text)]">Strike price.</span> What you pay per share to buy them. Set when your grant is issued — not something you negotiate.
+                <span className="font-semibold text-[var(--text)]">Strike price.</span> What you pay per share to buy them. Set when your grant is issued.
               </li>
               <li>
                 <span className="font-semibold text-[var(--text)]">Grant value.</span> What your shares are worth, minus what you paid for them. Paper money until exit.
@@ -213,14 +213,14 @@ export default function Calculator() {
             <p className="mb-4 text-[0.78rem] text-[var(--text-muted)]">
               What you have today — guaranteed cash and current paper value of your grant.
             </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Stat
                 label="Annual Cash"
                 value={fmt(inputs.base)}
                 sub="Base salary"
               />
               <Stat
-                label="Shares Granted"
+                label="Options Granted"
                 value={inputs.grant.toLocaleString()}
                 sub={`${inputs.vestYears}-year vest · $${inputs.strike.toFixed(2)} strike · ${fmt(ppsPreferred, 2)} preferred`}
               />
@@ -228,6 +228,12 @@ export default function Calculator() {
                 label="Grant Value (today)"
                 value={fmtK(current.grantValue)}
                 sub={`Gross ${fmtK(grossPreferred)} · net of strike, at today's preferred price`}
+                color="var(--green)"
+              />
+              <Stat
+                label="Annual Total Comp"
+                value={fmtK(inputs.base + (inputs.vestYears > 0 ? current.grantValue / inputs.vestYears : 0))}
+                sub={`Base + net equity ÷ ${inputs.vestYears}yr (today's paper value)`}
                 color="var(--green)"
               />
             </div>
@@ -260,7 +266,7 @@ export default function Calculator() {
                   <span className="text-[var(--green)]">{fmt(current.spread, 2)}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
-                  <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">× Your shares</span>
+                  <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">× Your options</span>
                   <span>{inputs.grant.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between py-1.5">
@@ -271,7 +277,7 @@ export default function Calculator() {
               {inputs.vestYears > 0 && inputs.grant > 0 && (
                 <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 font-sans text-[0.78rem] text-[var(--text-muted)]">
                   <span className="font-semibold text-[var(--text)]">Vests over {inputs.vestYears} years:</span>{" "}
-                  ~{Math.round(inputs.grant / inputs.vestYears).toLocaleString()} shares (~{fmtK(current.grantValue / inputs.vestYears)}) per year
+                  ~{Math.round(inputs.grant / inputs.vestYears).toLocaleString()} options (~{fmtK(current.grantValue / inputs.vestYears)}) per year
                 </div>
               )}
             </div>
