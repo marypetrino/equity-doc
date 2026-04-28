@@ -112,10 +112,10 @@ export default function Calculator() {
   const [tableOpen, setTableOpen] = useState(false);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    comp: true,
-    annual: true,
-    equity: true,
-    cap: true,
+    comp: false,
+    annual: false,
+    equity: false,
+    cap: false,
   });
   const toggleSection = (key: string) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
