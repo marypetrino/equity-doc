@@ -112,9 +112,10 @@ export default function Calculator() {
   const [tableOpen, setTableOpen] = useState(false);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    cap: true,
-    equity: true,
     comp: true,
+    annual: true,
+    equity: true,
+    cap: true,
   });
   const toggleSection = (key: string) =>
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -282,6 +283,12 @@ export default function Calculator() {
                   <span className="text-base font-bold text-[var(--green)]">{fmt(current.grantValue)}</span>
                 </div>
               </div>
+              {inputs.vestYears > 0 && inputs.grant > 0 && (
+                <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 font-sans text-[0.78rem] text-[var(--text-muted)]">
+                  <span className="font-semibold text-[var(--text)]">Vests over {inputs.vestYears} years:</span>{" "}
+                  ~{Math.round(inputs.grant / inputs.vestYears).toLocaleString()} shares (~{fmtK(current.grantValue / inputs.vestYears)}) per year
+                </div>
+              )}
               <p className="mt-4 text-[0.7rem] leading-relaxed text-[var(--text-muted)]">
                 Today's value uses the current preferred share price. Exit scenarios below apply the dilution % you set — by exit, more shares typically exist, so your slice of each new dollar is smaller.
               </p>
@@ -423,13 +430,21 @@ export default function Calculator() {
                     </tr>
                   </thead>
                   <tbody className="font-mono text-[0.82rem]">
-                    <SectionHeader label="Cap Table" colSpan={allScenarios.length + 1} open={openSections.cap} onToggle={() => toggleSection("cap")} />
-                    {openSections.cap && (
+                    <SectionHeader label={`Total Compensation (${inputs.vestYears}yr)`} colSpan={allScenarios.length + 1} open={openSections.comp} onToggle={() => toggleSection("comp")} />
+                    {openSections.comp && (
                       <>
-                        <Row label="Valuation" scenarios={allScenarios} fn={(s) => fmtK(s.exitVal)} />
-                        <Row label="Fully Diluted Shares" scenarios={allScenarios} fn={(s) => (s.fds / 1e6).toFixed(1) + "M"} muted />
-                        <Row label="Share Price" scenarios={allScenarios} fn={(s) => fmt(s.pps, 2)} />
-                        <Row label="Your Ownership" scenarios={allScenarios} fn={(s) => pct(s.ownership, 4)} muted />
+                        <Row label={`Total Cash (${inputs.vestYears}yr)`} scenarios={allScenarios} fn={() => fmt(inputs.base * inputs.vestYears)} muted />
+                        <Row label="Grant Value" scenarios={allScenarios} fn={(s) => fmt(s.grantValue)} highlight />
+                        <Row label="Total Package Value" scenarios={allScenarios} fn={(s) => fmt(inputs.base * inputs.vestYears + s.grantValue)} highlight />
+                      </>
+                    )}
+
+                    <SectionHeader label="Annual Total Compensation" colSpan={allScenarios.length + 1} open={openSections.annual} onToggle={() => toggleSection("annual")} />
+                    {openSections.annual && (
+                      <>
+                        <Row label="Annual Base Salary" scenarios={allScenarios} fn={() => fmt(inputs.base)} muted />
+                        <Row label={`Annual Equity (÷ ${inputs.vestYears}yr)`} scenarios={allScenarios} fn={(s) => fmt(inputs.vestYears > 0 ? s.grantValue / inputs.vestYears : 0)} muted />
+                        <Row label="Annual Total Comp" scenarios={allScenarios} fn={(s) => fmt(inputs.base + (inputs.vestYears > 0 ? s.grantValue / inputs.vestYears : 0))} highlight />
                       </>
                     )}
 
@@ -443,12 +458,13 @@ export default function Calculator() {
                       </>
                     )}
 
-                    <SectionHeader label="Total Compensation (Cash + Equity)" colSpan={allScenarios.length + 1} open={openSections.comp} onToggle={() => toggleSection("comp")} />
-                    {openSections.comp && (
+                    <SectionHeader label="Cap Table" colSpan={allScenarios.length + 1} open={openSections.cap} onToggle={() => toggleSection("cap")} />
+                    {openSections.cap && (
                       <>
-                        <Row label={`Total Cash (${inputs.vestYears}yr)`} scenarios={allScenarios} fn={() => fmt(inputs.base * inputs.vestYears)} muted />
-                        <Row label="Grant Value" scenarios={allScenarios} fn={(s) => fmt(s.grantValue)} highlight />
-                        <Row label="Total Package Value" scenarios={allScenarios} fn={(s) => fmt(inputs.base * inputs.vestYears + s.grantValue)} highlight />
+                        <Row label="Valuation" scenarios={allScenarios} fn={(s) => fmtK(s.exitVal)} />
+                        <Row label="Fully Diluted Shares" scenarios={allScenarios} fn={(s) => (s.fds / 1e6).toFixed(1) + "M"} muted />
+                        <Row label="Share Price" scenarios={allScenarios} fn={(s) => fmt(s.pps, 2)} />
+                        <Row label="Your Ownership" scenarios={allScenarios} fn={(s) => pct(s.ownership, 4)} muted />
                       </>
                     )}
                   </tbody>
