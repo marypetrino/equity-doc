@@ -15,8 +15,8 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Forge equity offer visualizer",
-  description: "Model your Forge option grant, dilution, and exit scenarios",
+  title: "Equity offer visualizer",
+  description: "Model your option grant, dilution, and exit scenarios",
 };
 
 export default function RootLayout({

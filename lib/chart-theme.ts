@@ -1,15 +1,15 @@
 import { fmtK } from "./format";
 
 export const C = {
-  green: "rgba(0,206,201,0.85)",
-  greenBg: "rgba(0,206,201,0.15)",
-  accent: "rgba(108,92,231,0.85)",
-  accentBg: "rgba(108,92,231,0.15)",
-  orange: "rgba(253,203,110,0.85)",
-  orangeBg: "rgba(253,203,110,0.15)",
-  red: "rgba(255,107,107,0.6)",
-  text: "#8b8d9e",
-  grid: "rgba(42,45,62,0.6)",
+  green: "rgba(0,163,158,0.85)",
+  greenBg: "rgba(0,163,158,0.18)",
+  accent: "rgba(85,70,214,0.85)",
+  accentBg: "rgba(85,70,214,0.15)",
+  orange: "rgba(217,154,46,0.85)",
+  orangeBg: "rgba(217,154,46,0.15)",
+  red: "rgba(224,82,77,0.65)",
+  text: "#6b6e7e",
+  grid: "rgba(180,184,200,0.4)",
 } as const;
 
 export const fontSm = { family: "DM Sans", size: 10 } as const;

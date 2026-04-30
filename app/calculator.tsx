@@ -24,6 +24,8 @@ const INFO = {
     "Most recent post-money valuation — the company's implied total value after the last round closed.",
   currentFds:
     "Total fully-diluted shares outstanding today — common, preferred, options, warrants. Used to compute share price.",
+  dilution:
+    "Each future financing round issues new shares, shrinking your ownership %. 15% per round is a typical assumption. Applied compounding: 2× exit assumes 1 raise, 5× assumes 2, 10× assumes 3.",
 } as const;
 
 interface Scenario {
@@ -33,10 +35,12 @@ interface Scenario {
   pps: number;
   spread: number;
   grantValue: number;
+  grantValueUndiluted: number;
   annualEquity: number;
   totalAnnualComp: number;
   ownership: number;
   exerciseCost: number;
+  rounds: number;
   isCurrent: boolean;
 }
 
@@ -47,18 +51,26 @@ interface Inputs {
   vestYears: number;
   currentVal: number;
   currentFds: number;
+  dilutionPct: number;
 }
 
 function compute(inputs: Inputs) {
-  const { base, grant, strike, vestYears, currentVal, currentFds } = inputs;
+  const { base, grant, strike, vestYears, currentVal, currentFds, dilutionPct } = inputs;
 
   const ppsPreferred = currentFds > 0 ? currentVal / currentFds : 0;
   const ownershipCurrent = currentFds > 0 ? grant / currentFds : 0;
+  const d = Math.max(0, dilutionPct) / 100;
 
-  function makeScenario(name: string, val: number, fds: number, isCurrent: boolean): Scenario {
+  function makeScenario(name: string, val: number, rounds: number, isCurrent: boolean): Scenario {
+    const fds = currentFds * Math.pow(1 + d, rounds);
     const pps = fds > 0 ? val / fds : 0;
     const spread = Math.max(0, pps - strike);
     const grantValue = grant * spread;
+
+    // Undiluted comparison (no new shares issued)
+    const ppsUndiluted = currentFds > 0 ? val / currentFds : 0;
+    const grantValueUndiluted = grant * Math.max(0, ppsUndiluted - strike);
+
     const annualEquity = vestYears > 0 ? grantValue / vestYears : 0;
     return {
       name,
@@ -67,21 +79,22 @@ function compute(inputs: Inputs) {
       pps,
       spread,
       grantValue,
+      grantValueUndiluted,
       annualEquity,
       totalAnnualComp: base + annualEquity,
       ownership: fds > 0 ? grant / fds : 0,
       exerciseCost: grant * strike,
+      rounds,
       isCurrent,
     };
   }
 
-  // All scenarios use currentFds — exit values are pre-dilution paper figures.
-  // Real exit dilution is called out in the glossary instead of modeled here.
-  const current = makeScenario("Today", currentVal, currentFds, true);
+  // Today: no dilution. Each higher exit tier assumes one additional financing round.
+  const current = makeScenario("Today", currentVal, 0, true);
   const exitScenarios = [
-    makeScenario("2×", currentVal * 2, currentFds, false),
-    makeScenario("5×", currentVal * 5, currentFds, false),
-    makeScenario("10×", currentVal * 10, currentFds, false),
+    makeScenario("2×", currentVal * 2, 1, false),
+    makeScenario("5×", currentVal * 5, 2, false),
+    makeScenario("10×", currentVal * 10, 3, false),
   ];
 
   return {
@@ -93,12 +106,13 @@ function compute(inputs: Inputs) {
 }
 
 export default function Calculator() {
-  const [base, setBase] = useState("175000");
-  const [grant, setGrant] = useState("11250");
-  const [strike, setStrike] = useState("5.84");
+  const [base, setBase] = useState("150000");
+  const [grant, setGrant] = useState("10000");
+  const [strike, setStrike] = useState("5.00");
   const [vestYears, setVestYears] = useState("4");
-  const [currentVal, setCurrentVal] = useState("500000000");
-  const [currentFds, setCurrentFds] = useState("12044242");
+  const [currentVal, setCurrentVal] = useState("250000000");
+  const [currentFds, setCurrentFds] = useState("10000000");
+  const [dilutionPct, setDilutionPct] = useState("15");
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [tableOpen, setTableOpen] = useState(false);
@@ -122,8 +136,9 @@ export default function Calculator() {
       vestYears: parse(vestYears),
       currentVal: parse(currentVal),
       currentFds: parse(currentFds),
+      dilutionPct: parse(dilutionPct),
     }),
-    [base, grant, strike, vestYears, currentVal, currentFds]
+    [base, grant, strike, vestYears, currentVal, currentFds, dilutionPct]
   );
 
   const {
@@ -159,6 +174,7 @@ export default function Calculator() {
             <Field label="Vest Period" value={vestYears} onChange={setVestYears} suffix="yr" fillWidth info={INFO.vestPeriod} />
             <Field label="Current Valuation" value={currentVal} onChange={setCurrentVal} prefix="$" commas fillWidth info={INFO.currentValuation} />
             <Field label="Current FD Shares" value={currentFds} onChange={setCurrentFds} commas fillWidth info={INFO.currentFds} />
+            <Field label="Dilution / Round" value={dilutionPct} onChange={setDilutionPct} suffix="%" fillWidth info={INFO.dilution} />
           </div>
         </aside>
       ) : (
@@ -176,9 +192,9 @@ export default function Calculator() {
       <main className="flex-1 overflow-x-hidden">
         <div className="mx-auto max-w-5xl px-6 py-8">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold tracking-tight">Forge Offer Visualizer</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Offer Visualizer</h1>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              See your full Forge offer — cash plus equity, today and at exit
+              See your full offer — cash plus equity, today and at exit
             </p>
           </div>
 
@@ -309,7 +325,7 @@ export default function Calculator() {
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <h2 className="card-section-heading mb-1">Total Package Value</h2>
               <p className="mb-4 text-[0.7rem] text-[var(--text-muted)]">
-                Cash plus net equity, today and at exit
+                Cash plus net equity, today and at exit — net equity reflects {inputs.dilutionPct}% dilution per future raise
               </p>
               <Bar
                 data={{
@@ -352,8 +368,32 @@ export default function Calculator() {
                   },
                 }}
               />
+              {/* Dilution breakdown by scenario */}
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {allScenarios.map((s) => {
+                  const dilFactor = inputs.currentFds > 0 ? s.fds / inputs.currentFds - 1 : 0;
+                  return (
+                    <div
+                      key={s.name}
+                      className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[0.72rem]"
+                    >
+                      <div className="font-semibold text-[var(--text)]">{s.name}</div>
+                      <div className="text-[var(--text-muted)]">
+                        {s.rounds === 0
+                          ? "No future raises"
+                          : `${s.rounds} ${s.rounds === 1 ? "raise" : "raises"} · ${(dilFactor * 100).toFixed(1)}% total dilution`}
+                      </div>
+                      {s.rounds > 0 && (
+                        <div className="text-[var(--text-muted)]">
+                          Undiluted: {fmtK(s.grantValueUndiluted)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
               <p className="mt-4 text-[0.72rem] leading-relaxed text-[var(--text-muted)]">
-                Exit values are pre-dilution. Future fundraising rounds will issue more shares before any payout — typically eroding per-share value by 10–25% before exit.
+                Each future financing round issues new shares ({inputs.dilutionPct}% per round assumed), shrinking your effective ownership before exit. Higher exit tiers assume more rounds along the way.
               </p>
             </div>
           </section>
