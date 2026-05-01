@@ -14,6 +14,7 @@ registerCharts();
 // Locked company values — not user-editable
 const LOCKED_VAL = 210_000_000;
 const LOCKED_FDS = 27_255_286;
+const LOCKED_STRIKE = 1.81;
 
 const INFO = {
   baseSalary:
@@ -112,7 +113,6 @@ function compute(inputs: Inputs) {
 export default function Calculator() {
   const [base, setBase] = useState("150000");
   const [grant, setGrant] = useState("10000");
-  const [strike, setStrike] = useState("5.00");
   const [vestYears, setVestYears] = useState("4");
   const [dilutionPct, setDilutionPct] = useState("15");
 
@@ -134,13 +134,13 @@ export default function Calculator() {
     () => ({
       base: parse(base),
       grant: parse(grant),
-      strike: parse(strike),
+      strike: LOCKED_STRIKE,
       vestYears: parse(vestYears),
       currentVal: LOCKED_VAL,
       currentFds: LOCKED_FDS,
       dilutionPct: parse(dilutionPct),
     }),
-    [base, grant, strike, vestYears, dilutionPct]
+    [base, grant, vestYears, dilutionPct]
   );
 
   const {
@@ -173,15 +173,11 @@ export default function Calculator() {
           <div className="flex flex-col gap-4">
             <Field label="Base Salary" value={base} onChange={setBase} prefix="$" commas fillWidth info={INFO.baseSalary} />
             <Field label="Option Grant" value={grant} onChange={setGrant} commas fillWidth info={INFO.optionGrant} />
-            <Field label="Strike Price" value={strike} onChange={setStrike} prefix="$" fillWidth info={INFO.strikePrice} />
             <Field label="Vest Period" value={vestYears} onChange={setVestYears} suffix="yr" fillWidth info={INFO.vestPeriod} />
 
             {/* Locked company fields */}
             <div className="flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Company (locked)</span>
-                <span className="text-[0.6rem] text-[var(--text-muted)]">🔒</span>
-              </div>
+              <span className="text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Company</span>
               <div className="flex flex-col gap-1">
                 <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Current Valuation</span>
                 <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[0.82rem] text-[var(--text-muted)]">
@@ -192,6 +188,12 @@ export default function Calculator() {
                 <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Current FD Shares</span>
                 <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[0.82rem] text-[var(--text-muted)]">
                   {LOCKED_FDS.toLocaleString()}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Strike Price</span>
+                <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[0.82rem] text-[var(--text-muted)]">
+                  ${LOCKED_STRIKE.toFixed(2)}
                 </div>
               </div>
             </div>
