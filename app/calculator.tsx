@@ -11,6 +11,10 @@ import { registerCharts } from "@/lib/register-charts";
 
 registerCharts();
 
+// Locked company values — not user-editable
+const LOCKED_VAL = 210_000_000;
+const LOCKED_FDS = 27_255_286;
+
 const INFO = {
   baseSalary:
     "Your guaranteed annual cash. Doesn't depend on exit outcome.",
@@ -110,8 +114,6 @@ export default function Calculator() {
   const [grant, setGrant] = useState("10000");
   const [strike, setStrike] = useState("5.00");
   const [vestYears, setVestYears] = useState("4");
-  const [currentVal, setCurrentVal] = useState("250000000");
-  const [currentFds, setCurrentFds] = useState("10000000");
   const [dilutionPct, setDilutionPct] = useState("15");
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -134,11 +136,11 @@ export default function Calculator() {
       grant: parse(grant),
       strike: parse(strike),
       vestYears: parse(vestYears),
-      currentVal: parse(currentVal),
-      currentFds: parse(currentFds),
+      currentVal: LOCKED_VAL,
+      currentFds: LOCKED_FDS,
       dilutionPct: parse(dilutionPct),
     }),
-    [base, grant, strike, vestYears, currentVal, currentFds, dilutionPct]
+    [base, grant, strike, vestYears, dilutionPct]
   );
 
   const {
@@ -157,6 +159,7 @@ export default function Calculator() {
       {/* Sidebar */}
       {sidebarOpen ? (
         <aside className="sticky top-0 h-screen w-[300px] shrink-0 overflow-y-auto border-r border-[var(--border)] bg-[var(--surface)] px-5 py-6">
+          <div className="mb-1 text-[0.62rem] font-semibold uppercase tracking-widest text-[var(--accent-light)]">Luminai</div>
           <div className="mb-5 flex items-center justify-between">
             <h2 className="card-section-heading">Inputs</h2>
             <button
@@ -172,8 +175,27 @@ export default function Calculator() {
             <Field label="Option Grant" value={grant} onChange={setGrant} commas fillWidth info={INFO.optionGrant} />
             <Field label="Strike Price" value={strike} onChange={setStrike} prefix="$" fillWidth info={INFO.strikePrice} />
             <Field label="Vest Period" value={vestYears} onChange={setVestYears} suffix="yr" fillWidth info={INFO.vestPeriod} />
-            <Field label="Current Valuation" value={currentVal} onChange={setCurrentVal} prefix="$" commas fillWidth info={INFO.currentValuation} />
-            <Field label="Current FD Shares" value={currentFds} onChange={setCurrentFds} commas fillWidth info={INFO.currentFds} />
+
+            {/* Locked company fields */}
+            <div className="flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Company (locked)</span>
+                <span className="text-[0.6rem] text-[var(--text-muted)]">🔒</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Current Valuation</span>
+                <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[0.82rem] text-[var(--text-muted)]">
+                  $210,000,000
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Current FD Shares</span>
+                <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[0.82rem] text-[var(--text-muted)]">
+                  {LOCKED_FDS.toLocaleString()}
+                </div>
+              </div>
+            </div>
+
             <Field label="Dilution / Round" value={dilutionPct} onChange={setDilutionPct} suffix="%" fillWidth info={INFO.dilution} />
           </div>
         </aside>
@@ -192,6 +214,7 @@ export default function Calculator() {
       <main className="flex-1 overflow-x-hidden">
         <div className="mx-auto max-w-5xl px-6 py-8">
           <div className="mb-8">
+            <div className="mb-1 text-[0.7rem] font-semibold uppercase tracking-widest text-[var(--accent-light)]">Luminai</div>
             <h1 className="text-2xl font-bold tracking-tight">Offer Visualizer</h1>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
               See your full offer — cash plus equity, today and at exit
