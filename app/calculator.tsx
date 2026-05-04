@@ -15,99 +15,79 @@ registerCharts();
 const LOCKED_VAL = 210_000_000;
 const LOCKED_FDS = 27_255_286;
 const LOCKED_STRIKE = 1.16;
+const LOCKED_PREFERRED_PPS = 7.89; // stated preferred price from cap table
+
+// Base FDS for dilution math derived from preferred price
+const BASE_FDS = LOCKED_VAL / LOCKED_PREFERRED_PPS;
+
+const EXIT_SCENARIOS = [
+  { name: "$210M", sub: "Series B",    exitVal: 210_000_000,    rounds: 0 },
+  { name: "$1B",   sub: "Series C+",   exitVal: 1_000_000_000,  rounds: 1 },
+  { name: "$5B",   sub: "Series D+",   exitVal: 5_000_000_000,  rounds: 2 },
+  { name: "$15B",  sub: "IPO / Public", exitVal: 15_000_000_000, rounds: 3 },
+  { name: "$50B",  sub: "IPO / Public", exitVal: 50_000_000_000, rounds: 2 },
+] as const;
 
 const INFO = {
-  baseSalary:
-    "Your guaranteed annual cash. Doesn't depend on exit outcome.",
+  baseSalary: "Your guaranteed annual cash. Doesn't depend on exit outcome.",
   optionGrant:
     "Number of shares you can buy at the strike price as you vest. You don't 'have' these shares yet — you have the right to buy them.",
-  strikePrice:
-    "Price per share to exercise your options. Set by a 409A appraisal at grant time — typically not negotiable.",
   vestPeriod:
     "How long until you've earned the full grant. Standard is 4 years with a 1-year cliff.",
-  currentValuation:
-    "Most recent post-money valuation — the company's implied total value after the last round closed.",
-  currentFds:
-    "Total fully-diluted shares outstanding today — common, preferred, options, warrants. Used to compute share price.",
   dilution:
-    "Each future financing round issues new shares, shrinking your ownership %. 15% per round is a typical assumption. Applied compounding: 2× exit assumes 1 raise, 5× assumes 2, 10× assumes 3.",
+    "Each future financing round issues new shares, shrinking your ownership %. 15% per round is a typical assumption.",
 } as const;
 
 interface Scenario {
   name: string;
+  sub: string;
   exitVal: number;
   fds: number;
   pps: number;
   spread: number;
   grantValue: number;
-  grantValueUndiluted: number;
   annualEquity: number;
   totalAnnualComp: number;
   ownership: number;
   exerciseCost: number;
   rounds: number;
-  isCurrent: boolean;
 }
 
 interface Inputs {
   base: number;
   grant: number;
-  strike: number;
   vestYears: number;
-  currentVal: number;
-  currentFds: number;
   dilutionPct: number;
 }
 
 function compute(inputs: Inputs) {
-  const { base, grant, strike, vestYears, currentVal, currentFds, dilutionPct } = inputs;
-
-  const ppsPreferred = currentFds > 0 ? currentVal / currentFds : 0;
-  const ownershipCurrent = currentFds > 0 ? grant / currentFds : 0;
+  const { base, grant, vestYears, dilutionPct } = inputs;
   const d = Math.max(0, dilutionPct) / 100;
 
-  function makeScenario(name: string, val: number, rounds: number, isCurrent: boolean): Scenario {
-    const fds = currentFds * Math.pow(1 + d, rounds);
-    const pps = fds > 0 ? val / fds : 0;
-    const spread = Math.max(0, pps - strike);
+  const scenarios: Scenario[] = EXIT_SCENARIOS.map((s) => {
+    const fds = BASE_FDS / Math.pow(1 - d, s.rounds);
+    const pps = fds > 0 ? s.exitVal / fds : 0;
+    const spread = Math.max(0, pps - LOCKED_STRIKE);
     const grantValue = grant * spread;
-
-    // Undiluted comparison (no new shares issued)
-    const ppsUndiluted = currentFds > 0 ? val / currentFds : 0;
-    const grantValueUndiluted = grant * Math.max(0, ppsUndiluted - strike);
-
     const annualEquity = vestYears > 0 ? grantValue / vestYears : 0;
     return {
-      name,
-      exitVal: val,
+      name: s.name,
+      sub: s.sub,
+      exitVal: s.exitVal,
       fds,
       pps,
       spread,
       grantValue,
-      grantValueUndiluted,
       annualEquity,
       totalAnnualComp: base + annualEquity,
       ownership: fds > 0 ? grant / fds : 0,
-      exerciseCost: grant * strike,
-      rounds,
-      isCurrent,
+      exerciseCost: grant * LOCKED_STRIKE,
+      rounds: s.rounds,
     };
-  }
+  });
 
-  // Today: no dilution. Each higher exit tier assumes one additional financing round.
-  const current = makeScenario("Today", currentVal, 0, true);
-  const exitScenarios = [
-    makeScenario("2×", currentVal * 2, 1, false),
-    makeScenario("5×", currentVal * 5, 2, false),
-    makeScenario("10×", currentVal * 10, 3, false),
-  ];
-
-  return {
-    current,
-    exitScenarios,
-    ppsPreferred,
-    ownershipCurrent,
-  };
+  const ownershipCurrent = LOCKED_FDS > 0 ? grant / LOCKED_FDS : 0;
+  return { scenarios, ownershipCurrent };
 }
 
 export default function Calculator() {
@@ -134,25 +114,17 @@ export default function Calculator() {
     () => ({
       base: parse(base),
       grant: parse(grant),
-      strike: LOCKED_STRIKE,
       vestYears: parse(vestYears),
-      currentVal: LOCKED_VAL,
-      currentFds: LOCKED_FDS,
       dilutionPct: parse(dilutionPct),
     }),
     [base, grant, vestYears, dilutionPct]
   );
 
-  const {
-    current,
-    exitScenarios,
-    ppsPreferred,
-    ownershipCurrent,
-  } = useMemo(() => compute(inputs), [inputs]);
+  const { scenarios, ownershipCurrent } = useMemo(() => compute(inputs), [inputs]);
 
-  const allScenarios = [current, ...exitScenarios];
-  const allLabels = allScenarios.map((s) => s.name);
-  const grossPreferred = inputs.grant * ppsPreferred;
+  // $210M scenario serves as "today" for package summary / equity breakout
+  const today = scenarios[0];
+  const grossPreferred = inputs.grant * LOCKED_PREFERRED_PPS;
 
   return (
     <div className="flex min-h-screen">
@@ -223,120 +195,26 @@ export default function Calculator() {
             </p>
           </div>
 
-          {/* GLOSSARY: How your offer works */}
+          {/* GLOSSARY */}
           <section className="mb-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:p-6">
             <h2 className="card-section-heading mb-3">How Your Offer Works</h2>
             <ul className="w-full list-none space-y-3 text-sm text-[var(--text-muted)]">
               <li>
-                <span className="font-semibold text-[var(--text)]">Annual cash.</span> Your guaranteed base salary.
+                <span className="font-semibold text-[var(--text)]">Annual cash.</span>{" "}Your guaranteed base salary.
               </li>
               <li>
                 <span className="font-semibold text-[var(--text)]">Options granted.</span>{" "}How many options you&apos;ll earn over time. Each one is the right to buy a share at the strike price.
               </li>
               <li>
-                <span className="font-semibold text-[var(--text)]">Strike price.</span> What you pay per share to buy them. Set when your grant is issued.
+                <span className="font-semibold text-[var(--text)]">Strike price.</span>{" "}What you pay per share to buy them. Set when your grant is issued.
               </li>
               <li>
-                <span className="font-semibold text-[var(--text)]">Grant value.</span> What your shares are worth, minus what you paid for them. Paper money until exit.
+                <span className="font-semibold text-[var(--text)]">Grant value.</span>{" "}What your shares are worth at exit, minus what you paid for them.
               </li>
             </ul>
           </section>
 
-          {/* 1. PACKAGE SUMMARY */}
-          <section className="mb-10">
-            <div className="mb-2 flex items-center gap-3">
-              <span className="section-divider-title">Your Package</span>
-              <div className="section-divider-line" />
-            </div>
-            <p className="mb-4 text-[0.78rem] text-[var(--text-muted)]">
-              What you have today — guaranteed cash and current paper value of your grant.
-            </p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Stat
-                label="Annual Cash"
-                value={fmt(inputs.base)}
-                sub="Base salary"
-              />
-              <Stat
-                label="Options Granted"
-                value={inputs.grant.toLocaleString()}
-                sub={`${inputs.vestYears}-year vest · $${inputs.strike.toFixed(2)} strike · ${fmt(ppsPreferred, 2)} preferred`}
-              />
-              <Stat
-                label="Grant Value (today)"
-                value={fmtK(current.grantValue)}
-                sub={`Gross ${fmtK(grossPreferred)} · net of strike, at today's preferred price`}
-                color="var(--green)"
-              />
-              <Stat
-                label="Annual Total Comp"
-                value={fmtK(inputs.base + (inputs.vestYears > 0 ? current.grantValue / inputs.vestYears : 0))}
-                sub={`Base + net equity ÷ ${inputs.vestYears}yr (today's paper value)`}
-                color="var(--green)"
-              />
-            </div>
-          </section>
-
-          {/* 2. EQUITY BREAKOUT */}
-          <section className="mb-10">
-            <div className="mb-2 flex items-center gap-3">
-              <span className="section-divider-title">Equity Breakout</span>
-              <div className="section-divider-line" />
-            </div>
-            <p className="mb-4 text-[0.78rem] text-[var(--text-muted)]">
-              How your grant value gets calculated at today's valuation.
-            </p>
-
-            {/* Math walkdown — preferred → net → grant value */}
-            <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-              <h3 className="card-subsection-heading mb-4">Current Grant Value — Step by Step</h3>
-              <div className="space-y-1 font-mono text-sm">
-                <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
-                  <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">Preferred share price (today)</span>
-                  <span>{fmt(ppsPreferred, 2)}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
-                  <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">− Strike price</span>
-                  <span>({fmt(inputs.strike, 2)})</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-[var(--accent-light)]/30 py-1.5">
-                  <span className="font-sans text-[0.82rem] font-semibold">= Net value / share</span>
-                  <span className="text-[var(--green)]">{fmt(current.spread, 2)}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
-                  <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">× Your options</span>
-                  <span>{inputs.grant.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between py-1.5">
-                  <span className="font-sans text-[0.82rem] font-semibold">= Current grant value</span>
-                  <span className="text-base font-bold text-[var(--green)]">{fmt(current.grantValue)}</span>
-                </div>
-              </div>
-              {inputs.vestYears > 0 && inputs.grant > 0 && (
-                <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 font-sans text-[0.78rem] text-[var(--text-muted)]">
-                  <span className="font-semibold text-[var(--text)]">Vests over {inputs.vestYears} years:</span>{" "}
-                  ~{Math.round(inputs.grant / inputs.vestYears).toLocaleString()} options (~{fmtK(current.grantValue / inputs.vestYears)}) per year
-                </div>
-              )}
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Stat
-                label="Exercise Cost"
-                value={fmtK(inputs.grant * inputs.strike)}
-                sub="Real cash you spend before any payout"
-              />
-              <Stat
-                label="Your Ownership"
-                value={pct(ownershipCurrent, 3)}
-                sub="Of fully-diluted shares today"
-                color="var(--accent-light)"
-              />
-            </div>
-          </section>
-
-          {/* 3. CHARTS */}
+          {/* VISUALIZED — moved above Your Package */}
           <section className="mb-10">
             <div className="mb-2 flex items-center gap-3">
               <span className="section-divider-title">Visualized</span>
@@ -346,19 +224,18 @@ export default function Calculator() {
               How your total package value scales with company growth at exit.
             </p>
 
-            {/* Chart 1: Stacked Cash + Net Equity, today + exits */}
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <h2 className="card-section-heading mb-1">Total Package Value</h2>
               <p className="mb-4 text-[0.7rem] text-[var(--text-muted)]">
-                Cash plus net equity, today and at exit — net equity reflects {inputs.dilutionPct}% dilution per future raise
+                Cash plus net equity across five outcomes — assuming {inputs.dilutionPct}% dilution per round
               </p>
               <Bar
                 data={{
-                  labels: allLabels,
+                  labels: scenarios.map((s) => `${s.name}\n${s.sub}`),
                   datasets: [
                     {
                       label: `Cash (${inputs.vestYears}yr base)`,
-                      data: allScenarios.map(() => inputs.base * inputs.vestYears),
+                      data: scenarios.map(() => inputs.base * inputs.vestYears),
                       backgroundColor: C.accentBg,
                       borderColor: C.accent,
                       borderWidth: 1,
@@ -366,7 +243,7 @@ export default function Calculator() {
                     },
                     {
                       label: "Net Equity",
-                      data: allScenarios.map((s) => s.grantValue),
+                      data: scenarios.map((s) => s.grantValue),
                       backgroundColor: C.green,
                       borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 },
                       barPercentage: 0.55,
@@ -388,42 +265,119 @@ export default function Calculator() {
                     },
                   },
                   scales: {
-                    x: { stacked: true, ...defX, title: { display: true, text: "Scenario", color: C.text, font: fontSm } },
+                    x: { stacked: true, ...defX, title: { display: true, text: "Outcome", color: C.text, font: fontSm } },
                     y: { stacked: true, ...defY },
                   },
                 }}
               />
-              {/* Dilution breakdown by scenario */}
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {allScenarios.map((s) => {
-                  const dilFactor = inputs.currentFds > 0 ? s.fds / inputs.currentFds - 1 : 0;
-                  return (
-                    <div
-                      key={s.name}
-                      className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[0.72rem]"
-                    >
-                      <div className="font-semibold text-[var(--text)]">{s.name}</div>
-                      <div className="text-[var(--text-muted)]">
-                        {s.rounds === 0
-                          ? "No future raises"
-                          : `${s.rounds} ${s.rounds === 1 ? "raise" : "raises"} · ${(dilFactor * 100).toFixed(1)}% total dilution`}
-                      </div>
-                      {s.rounds > 0 && (
-                        <div className="text-[var(--text-muted)]">
-                          Undiluted: {fmtK(s.grantValueUndiluted)}
-                        </div>
-                      )}
+
+              {/* Outcome cards — Net Equity per scenario */}
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {scenarios.map((s) => (
+                  <div
+                    key={s.name}
+                    className="rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[0.72rem]"
+                  >
+                    <div className="font-semibold text-[var(--text)]">{s.name}</div>
+                    <div className="text-[var(--text-muted)]">{s.sub}</div>
+                    <div className="mt-1 text-[var(--text-muted)]">
+                      Net Equity: <span className="font-semibold text-[var(--green)]">{fmtK(s.grantValue)}</span>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
-              <p className="mt-4 text-[0.72rem] leading-relaxed text-[var(--text-muted)]">
-                Each future financing round issues new shares ({inputs.dilutionPct}% per round assumed), shrinking your effective ownership before exit. Higher exit tiers assume more rounds along the way.
-              </p>
             </div>
           </section>
 
-          {/* 4. DETAILED TABLE — collapsed by default */}
+          {/* YOUR PACKAGE */}
+          <section className="mb-10">
+            <div className="mb-2 flex items-center gap-3">
+              <span className="section-divider-title">Your Package</span>
+              <div className="section-divider-line" />
+            </div>
+            <p className="mb-4 text-[0.78rem] text-[var(--text-muted)]">
+              What you have today — guaranteed cash and current paper value of your grant.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Stat label="Annual Cash" value={fmt(inputs.base)} sub="Base salary" />
+              <Stat
+                label="Options Granted"
+                value={inputs.grant.toLocaleString()}
+                sub={`${inputs.vestYears}-year vest · $${LOCKED_STRIKE.toFixed(2)} strike · $${LOCKED_PREFERRED_PPS.toFixed(2)} preferred`}
+              />
+              <Stat
+                label="Grant Value (today)"
+                value={fmtK(today.grantValue)}
+                sub={`Gross ${fmtK(grossPreferred)} · net of strike, at today's preferred price`}
+                color="var(--green)"
+              />
+              <Stat
+                label="Annual Total Comp"
+                value={fmtK(inputs.base + (inputs.vestYears > 0 ? today.grantValue / inputs.vestYears : 0))}
+                sub={`Base + net equity ÷ ${inputs.vestYears}yr`}
+                color="var(--green)"
+              />
+            </div>
+          </section>
+
+          {/* EQUITY BREAKOUT */}
+          <section className="mb-10">
+            <div className="mb-2 flex items-center gap-3">
+              <span className="section-divider-title">Equity Breakout</span>
+              <div className="section-divider-line" />
+            </div>
+            <p className="mb-4 text-[0.78rem] text-[var(--text-muted)]">
+              How your grant value gets calculated at today&apos;s valuation.
+            </p>
+
+            <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <h3 className="card-subsection-heading mb-4">Current Grant Value — Step by Step</h3>
+              <div className="space-y-1 font-mono text-sm">
+                <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
+                  <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">Preferred share price (today)</span>
+                  <span>{fmt(LOCKED_PREFERRED_PPS, 2)}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
+                  <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">− Strike price</span>
+                  <span>({fmt(LOCKED_STRIKE, 2)})</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[var(--accent-light)]/30 py-1.5">
+                  <span className="font-sans text-[0.82rem] font-semibold">= Net value / share</span>
+                  <span className="text-[var(--green)]">{fmt(today.spread, 2)}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
+                  <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">× Your options</span>
+                  <span>{inputs.grant.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between py-1.5">
+                  <span className="font-sans text-[0.82rem] font-semibold">= Current grant value</span>
+                  <span className="text-base font-bold text-[var(--green)]">{fmt(today.grantValue)}</span>
+                </div>
+              </div>
+              {inputs.vestYears > 0 && inputs.grant > 0 && (
+                <div className="mt-3 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 font-sans text-[0.78rem] text-[var(--text-muted)]">
+                  <span className="font-semibold text-[var(--text)]">Vests over {inputs.vestYears} years:</span>{" "}
+                  ~{Math.round(inputs.grant / inputs.vestYears).toLocaleString()} options (~{fmtK(today.grantValue / inputs.vestYears)}) per year
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Stat
+                label="Exercise Cost"
+                value={fmtK(inputs.grant * LOCKED_STRIKE)}
+                sub="Cash you spend to exercise your options"
+              />
+              <Stat
+                label="Your Ownership"
+                value={pct(ownershipCurrent, 3)}
+                sub="Of fully-diluted shares today"
+                color="var(--accent-light)"
+              />
+            </div>
+          </section>
+
+          {/* DETAILED TABLE */}
           <section className="mb-10">
             <button
               type="button"
@@ -447,67 +401,56 @@ export default function Calculator() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr>
-                      <th className="pb-1 pr-4" />
-                      <th className="border-r border-r-[var(--border)] pb-1" />
-                      <th
-                        colSpan={exitScenarios.length}
-                        className="border-b border-[var(--accent-light)]/20 px-3 pb-1 text-left text-[0.62rem] font-semibold uppercase tracking-widest text-[var(--accent-light)]"
-                      >
-                        Exit Scenarios →
-                      </th>
-                    </tr>
-                    <tr>
                       <th className="min-w-[180px] pb-3 pr-4 text-left text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                         Metric
                       </th>
-                      {allScenarios.map((s, i) => (
+                      {scenarios.map((s) => (
                         <th
                           key={s.name}
-                          className={`whitespace-nowrap px-3 pb-3 text-right text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)] ${
-                            i === 0 ? "border-r border-r-[var(--border)]" : ""
-                          }`}
+                          className="whitespace-nowrap px-3 pb-3 text-right text-[0.7rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]"
                         >
                           {s.name}
+                          <div className="font-normal normal-case tracking-normal text-[0.6rem]">{s.sub}</div>
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="font-mono text-[0.82rem]">
-                    <SectionHeader label={`Total Compensation (${inputs.vestYears}yr)`} colSpan={allScenarios.length + 1} open={openSections.comp} onToggle={() => toggleSection("comp")} />
+                    <SectionHeader label={`Total Compensation (${inputs.vestYears}yr)`} colSpan={scenarios.length + 1} open={openSections.comp} onToggle={() => toggleSection("comp")} />
                     {openSections.comp && (
                       <>
-                        <Row label={`Total Cash (${inputs.vestYears}yr)`} scenarios={allScenarios} fn={() => fmt(inputs.base * inputs.vestYears)} muted />
-                        <Row label="Grant Value" scenarios={allScenarios} fn={(s) => fmt(s.grantValue)} highlight />
-                        <Row label="Total Package Value" scenarios={allScenarios} fn={(s) => fmt(inputs.base * inputs.vestYears + s.grantValue)} highlight />
+                        <Row label={`Total Cash (${inputs.vestYears}yr)`} scenarios={scenarios} fn={() => fmt(inputs.base * inputs.vestYears)} muted />
+                        <Row label="Grant Value" scenarios={scenarios} fn={(s) => fmt(s.grantValue)} highlight />
+                        <Row label="Total Package Value" scenarios={scenarios} fn={(s) => fmt(inputs.base * inputs.vestYears + s.grantValue)} highlight />
                       </>
                     )}
 
-                    <SectionHeader label="Annual Total Compensation" colSpan={allScenarios.length + 1} open={openSections.annual} onToggle={() => toggleSection("annual")} />
+                    <SectionHeader label="Annual Total Compensation" colSpan={scenarios.length + 1} open={openSections.annual} onToggle={() => toggleSection("annual")} />
                     {openSections.annual && (
                       <>
-                        <Row label="Annual Base Salary" scenarios={allScenarios} fn={() => fmt(inputs.base)} muted />
-                        <Row label={`Annual Equity (÷ ${inputs.vestYears}yr)`} scenarios={allScenarios} fn={(s) => fmt(inputs.vestYears > 0 ? s.grantValue / inputs.vestYears : 0)} muted />
-                        <Row label="Annual Total Comp" scenarios={allScenarios} fn={(s) => fmt(inputs.base + (inputs.vestYears > 0 ? s.grantValue / inputs.vestYears : 0))} highlight />
+                        <Row label="Annual Base Salary" scenarios={scenarios} fn={() => fmt(inputs.base)} muted />
+                        <Row label={`Annual Equity (÷ ${inputs.vestYears}yr)`} scenarios={scenarios} fn={(s) => fmt(inputs.vestYears > 0 ? s.grantValue / inputs.vestYears : 0)} muted />
+                        <Row label="Annual Total Comp" scenarios={scenarios} fn={(s) => fmt(inputs.base + (inputs.vestYears > 0 ? s.grantValue / inputs.vestYears : 0))} highlight />
                       </>
                     )}
 
-                    <SectionHeader label="Your Equity" colSpan={allScenarios.length + 1} open={openSections.equity} onToggle={() => toggleSection("equity")} />
+                    <SectionHeader label="Your Equity" colSpan={scenarios.length + 1} open={openSections.equity} onToggle={() => toggleSection("equity")} />
                     {openSections.equity && (
                       <>
-                        <Row label="Share Price" scenarios={allScenarios} fn={(s) => fmt(s.pps, 2)} muted />
-                        <Row label="Less: Strike Price" scenarios={allScenarios} fn={() => `(${fmt(inputs.strike, 2)})`} muted />
-                        <Row label="Net Value / Share" scenarios={allScenarios} fn={(s) => fmt(s.spread, 2)} highlight />
-                        <Row label="Exercise Cost" scenarios={allScenarios} fn={(s) => fmt(s.exerciseCost)} muted />
+                        <Row label="Share Price" scenarios={scenarios} fn={(s) => fmt(s.pps, 2)} muted />
+                        <Row label="Less: Strike Price" scenarios={scenarios} fn={() => `(${fmt(LOCKED_STRIKE, 2)})`} muted />
+                        <Row label="Net Value / Share" scenarios={scenarios} fn={(s) => fmt(s.spread, 2)} highlight />
+                        <Row label="Exercise Cost" scenarios={scenarios} fn={(s) => fmt(s.exerciseCost)} muted />
                       </>
                     )}
 
-                    <SectionHeader label="Cap Table" colSpan={allScenarios.length + 1} open={openSections.cap} onToggle={() => toggleSection("cap")} />
+                    <SectionHeader label="Cap Table" colSpan={scenarios.length + 1} open={openSections.cap} onToggle={() => toggleSection("cap")} />
                     {openSections.cap && (
                       <>
-                        <Row label="Valuation" scenarios={allScenarios} fn={(s) => fmtK(s.exitVal)} />
-                        <Row label="Fully Diluted Shares" scenarios={allScenarios} fn={(s) => (s.fds / 1e6).toFixed(1) + "M"} muted />
-                        <Row label="Share Price" scenarios={allScenarios} fn={(s) => fmt(s.pps, 2)} />
-                        <Row label="Your Ownership" scenarios={allScenarios} fn={(s) => pct(s.ownership, 4)} muted />
+                        <Row label="Valuation" scenarios={scenarios} fn={(s) => fmtK(s.exitVal)} />
+                        <Row label="Fully Diluted Shares" scenarios={scenarios} fn={(s) => (s.fds / 1e6).toFixed(1) + "M"} muted />
+                        <Row label="Share Price" scenarios={scenarios} fn={(s) => fmt(s.pps, 2)} />
+                        <Row label="Your Ownership" scenarios={scenarios} fn={(s) => pct(s.ownership, 4)} muted />
                       </>
                     )}
                   </tbody>
