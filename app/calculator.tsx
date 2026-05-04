@@ -14,7 +14,7 @@ registerCharts();
 // Locked company values — not user-editable
 const LOCKED_VAL = 210_000_000;
 const LOCKED_FDS = 27_255_286;
-const LOCKED_STRIKE = 1.81;
+const LOCKED_STRIKE = 1.16;
 
 const INFO = {
   baseSalary:
