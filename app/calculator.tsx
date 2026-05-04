@@ -206,7 +206,7 @@ export default function Calculator() {
                 <span className="font-semibold text-[var(--text)]">Options granted.</span>{" "}How many options you&apos;ll earn over time. Each one is the right to buy a share at the strike price.
               </li>
               <li>
-                <span className="font-semibold text-[var(--text)]">Strike price.</span>{" "}What you pay per share to buy them. Set when your grant is issued.
+                <span className="font-semibold text-[var(--text)]">Strike price.</span>{" "}What you pay per share to buy your vested options. Set when your grant is issued.
               </li>
               <li>
                 <span className="font-semibold text-[var(--text)]">Grant value.</span>{" "}What your shares are worth at exit, minus what you paid for them.
