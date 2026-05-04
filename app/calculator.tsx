@@ -281,7 +281,8 @@ export default function Calculator() {
                     <div className="font-semibold text-[var(--text)]">{s.name}</div>
                     <div className="text-[var(--text-muted)]">{s.sub}</div>
                     <div className="mt-1 text-[var(--text-muted)]">
-                      Net Equity: <span className="font-semibold text-[var(--green)]">{fmtK(s.grantValue)}</span>
+                      Net Equity:
+                      <div className="font-semibold text-[var(--green)]">{fmtK(s.grantValue)}</div>
                     </div>
                   </div>
                 ))}
