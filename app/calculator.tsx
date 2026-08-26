@@ -11,21 +11,18 @@ import { registerCharts } from "@/lib/register-charts";
 
 registerCharts();
 
-// Locked company values — not user-editable
-const LOCKED_VAL = 210_000_000;
-const LOCKED_FDS = 27_255_286;
-const LOCKED_STRIKE = 1.16;
-const LOCKED_PREFERRED_PPS = 7.89; // stated preferred price from cap table
+// Default company values — editable in the sidebar
+const DEFAULT_VAL = "210000000";
+const DEFAULT_FDS = "27255286";
+const DEFAULT_STRIKE = "1.16";
 
-// Base FDS for dilution math derived from preferred price
-const BASE_FDS = LOCKED_VAL / LOCKED_PREFERRED_PPS;
-
-const EXIT_SCENARIOS = [
-  { name: "$210M", sub: "Series B",    exitVal: 210_000_000,    rounds: 0 },
-  { name: "$1B",   sub: "Series C+",   exitVal: 1_000_000_000,  rounds: 1 },
-  { name: "$5B",   sub: "Series D+",   exitVal: 5_000_000_000,  rounds: 2 },
-  { name: "$15B",  sub: "IPO / Public", exitVal: 15_000_000_000, rounds: 3 },
-  { name: "$50B",  sub: "IPO / Public", exitVal: 50_000_000_000, rounds: 2 },
+// Fixed higher-outcome milestones. The "today" scenario (at the current,
+// editable valuation) is prepended at compute time so it tracks the inputs.
+const EXIT_MILESTONES = [
+  { name: "$1B",  sub: "Series C+",    exitVal: 1_000_000_000,  rounds: 1 },
+  { name: "$5B",  sub: "Series D+",    exitVal: 5_000_000_000,  rounds: 2 },
+  { name: "$15B", sub: "IPO / Public", exitVal: 15_000_000_000, rounds: 3 },
+  { name: "$50B", sub: "IPO / Public", exitVal: 50_000_000_000, rounds: 2 },
 ] as const;
 
 const INFO = {
@@ -36,6 +33,12 @@ const INFO = {
     "How long until you've earned the full grant. Standard is 4 years with a 1-year cliff.",
   dilution:
     "Each future financing round issues new shares, shrinking your ownership %. 15% per round is a typical assumption.",
+  currentValuation:
+    "Most recent post-money valuation — the company's implied total value after the last round closed.",
+  currentFds:
+    "Total fully-diluted shares outstanding today — common, preferred, options, warrants. Used to compute share price.",
+  strikePrice:
+    "Price per share to exercise your options. Set by a 409A appraisal at grant time — typically not negotiable.",
 } as const;
 
 interface Scenario {
@@ -58,16 +61,30 @@ interface Inputs {
   grant: number;
   vestYears: number;
   dilutionPct: number;
+  currentVal: number;
+  currentFds: number;
+  strike: number;
 }
 
 function compute(inputs: Inputs) {
-  const { base, grant, vestYears, dilutionPct } = inputs;
+  const { base, grant, vestYears, dilutionPct, currentVal, currentFds, strike } = inputs;
   const d = Math.max(0, dilutionPct) / 100;
 
-  const scenarios: Scenario[] = EXIT_SCENARIOS.map((s) => {
-    const fds = BASE_FDS / Math.pow(1 - d, s.rounds);
+  // Preferred share price and the dilution base both derive from the editable
+  // valuation and share count, so everything stays consistent as they change.
+  const preferredPps = currentFds > 0 ? currentVal / currentFds : 0;
+  const baseFds = currentFds;
+
+  // "Today" at the current valuation, then the fixed higher milestones.
+  const exitScenarios = [
+    { name: fmtK(currentVal), sub: "Current", exitVal: currentVal, rounds: 0 },
+    ...EXIT_MILESTONES,
+  ];
+
+  const scenarios: Scenario[] = exitScenarios.map((s) => {
+    const fds = baseFds / Math.pow(1 - d, s.rounds);
     const pps = fds > 0 ? s.exitVal / fds : 0;
-    const spread = Math.max(0, pps - LOCKED_STRIKE);
+    const spread = Math.max(0, pps - strike);
     const grantValue = grant * spread;
     const annualEquity = vestYears > 0 ? grantValue / vestYears : 0;
     return {
@@ -81,13 +98,13 @@ function compute(inputs: Inputs) {
       annualEquity,
       totalAnnualComp: base + annualEquity,
       ownership: fds > 0 ? grant / fds : 0,
-      exerciseCost: grant * LOCKED_STRIKE,
+      exerciseCost: grant * strike,
       rounds: s.rounds,
     };
   });
 
-  const ownershipCurrent = LOCKED_FDS > 0 ? grant / LOCKED_FDS : 0;
-  return { scenarios, ownershipCurrent };
+  const ownershipCurrent = currentFds > 0 ? grant / currentFds : 0;
+  return { scenarios, ownershipCurrent, preferredPps };
 }
 
 export default function Calculator() {
@@ -95,6 +112,9 @@ export default function Calculator() {
   const [grant, setGrant] = useState("10000");
   const [vestYears, setVestYears] = useState("4");
   const [dilutionPct, setDilutionPct] = useState("15");
+  const [currentVal, setCurrentVal] = useState(DEFAULT_VAL);
+  const [currentFds, setCurrentFds] = useState(DEFAULT_FDS);
+  const [strike, setStrike] = useState(DEFAULT_STRIKE);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [tableOpen, setTableOpen] = useState(false);
@@ -116,15 +136,21 @@ export default function Calculator() {
       grant: parse(grant),
       vestYears: parse(vestYears),
       dilutionPct: parse(dilutionPct),
+      currentVal: parse(currentVal),
+      currentFds: parse(currentFds),
+      strike: parse(strike),
     }),
-    [base, grant, vestYears, dilutionPct]
+    [base, grant, vestYears, dilutionPct, currentVal, currentFds, strike]
   );
 
-  const { scenarios, ownershipCurrent } = useMemo(() => compute(inputs), [inputs]);
+  const { scenarios, ownershipCurrent, preferredPps } = useMemo(
+    () => compute(inputs),
+    [inputs]
+  );
 
-  // $210M scenario serves as "today" for package summary / equity breakout
+  // First scenario (current valuation) serves as "today" for package summary / equity breakout
   const today = scenarios[0];
-  const grossPreferred = inputs.grant * LOCKED_PREFERRED_PPS;
+  const grossPreferred = inputs.grant * preferredPps;
 
   return (
     <div className="flex min-h-screen">
@@ -147,27 +173,12 @@ export default function Calculator() {
             <Field label="Option Grant" value={grant} onChange={setGrant} commas fillWidth info={INFO.optionGrant} />
             <Field label="Vest Period" value={vestYears} onChange={setVestYears} suffix="yr" fillWidth info={INFO.vestPeriod} />
 
-            {/* Locked company fields */}
+            {/* Company fields — editable */}
             <div className="flex flex-col gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3">
               <span className="text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Company</span>
-              <div className="flex flex-col gap-1">
-                <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Current Valuation</span>
-                <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[0.82rem] text-[var(--text-muted)]">
-                  $210,000,000
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Current FD Shares</span>
-                <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[0.82rem] text-[var(--text-muted)]">
-                  {LOCKED_FDS.toLocaleString()}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-[0.68rem] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Strike Price</span>
-                <div className="rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 font-mono text-[0.82rem] text-[var(--text-muted)]">
-                  ${LOCKED_STRIKE.toFixed(2)}
-                </div>
-              </div>
+              <Field label="Current Valuation" value={currentVal} onChange={setCurrentVal} prefix="$" commas fillWidth info={INFO.currentValuation} />
+              <Field label="Current FD Shares" value={currentFds} onChange={setCurrentFds} commas fillWidth info={INFO.currentFds} />
+              <Field label="Strike Price" value={strike} onChange={setStrike} prefix="$" fillWidth info={INFO.strikePrice} />
             </div>
 
             <Field label="Dilution / Round" value={dilutionPct} onChange={setDilutionPct} suffix="%" fillWidth info={INFO.dilution} />
@@ -304,7 +315,7 @@ export default function Calculator() {
               <Stat
                 label="Options Granted"
                 value={inputs.grant.toLocaleString()}
-                sub={`${inputs.vestYears}-year vest · $${LOCKED_STRIKE.toFixed(2)} strike · $${LOCKED_PREFERRED_PPS.toFixed(2)} preferred`}
+                sub={`${inputs.vestYears}-year vest · $${inputs.strike.toFixed(2)} strike · $${preferredPps.toFixed(2)} preferred`}
               />
               <Stat
                 label="Grant Value (today)"
@@ -336,11 +347,11 @@ export default function Calculator() {
               <div className="space-y-1 font-mono text-sm">
                 <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
                   <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">Preferred share price (today)</span>
-                  <span>{fmt(LOCKED_PREFERRED_PPS, 2)}</span>
+                  <span>{fmt(preferredPps, 2)}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[var(--border)]/40 py-1.5">
                   <span className="font-sans text-[0.82rem] text-[var(--text-muted)]">− Strike price</span>
-                  <span>({fmt(LOCKED_STRIKE, 2)})</span>
+                  <span>({fmt(inputs.strike, 2)})</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-[var(--accent-light)]/30 py-1.5">
                   <span className="font-sans text-[0.82rem] font-semibold">= Net value / share</span>
@@ -366,7 +377,7 @@ export default function Calculator() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Stat
                 label="Exercise Cost"
-                value={fmtK(inputs.grant * LOCKED_STRIKE)}
+                value={fmtK(inputs.grant * inputs.strike)}
                 sub="Cash you spend to exercise your options"
               />
               <Stat
@@ -439,7 +450,7 @@ export default function Calculator() {
                     {openSections.equity && (
                       <>
                         <Row label="Share Price" scenarios={scenarios} fn={(s) => fmt(s.pps, 2)} muted />
-                        <Row label="Less: Strike Price" scenarios={scenarios} fn={() => `(${fmt(LOCKED_STRIKE, 2)})`} muted />
+                        <Row label="Less: Strike Price" scenarios={scenarios} fn={() => `(${fmt(inputs.strike, 2)})`} muted />
                         <Row label="Net Value / Share" scenarios={scenarios} fn={(s) => fmt(s.spread, 2)} highlight />
                         <Row label="Exercise Cost" scenarios={scenarios} fn={(s) => fmt(s.exerciseCost)} muted />
                       </>
