@@ -11,8 +11,8 @@ export function Field({
   suffix,
   commas = false,
   info,
-  /** Use inside CSS grid so the control fills its cell (no flex-1 growth). */
   fillWidth = false,
+  locked = false,
 }: {
   label: string;
   value: string;
@@ -20,9 +20,9 @@ export function Field({
   prefix?: string;
   suffix?: string;
   commas?: boolean;
-  /** Optional tooltip next to the label */
   info?: string;
   fillWidth?: boolean;
+  locked?: boolean;
 }) {
   const display = commas ? addCommas(value) : value;
 
@@ -44,7 +44,10 @@ export function Field({
           fillWidth ? "" : "min-h-[3.25rem]"
         }`}
       >
-        <span className="min-w-0 flex-1">{label}</span>
+        <span className="min-w-0 flex-1">
+          {label}
+          {locked ? <span className="ml-1.5 normal-case tracking-normal text-[var(--accent-light)]">· Locked</span> : null}
+        </span>
         {info ? (
           <span className="shrink-0 pt-px">
             <InfoTip content={info} label={`About ${label}`} />
@@ -53,7 +56,7 @@ export function Field({
       </label>
       <div className="relative min-w-0">
         {prefix && (
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-xs font-mono">
+          <span className="absolute left-2 top-1/2 -translate-y-1/2 font-mono text-xs text-[var(--text-muted)]">
             {prefix}
           </span>
         )}
@@ -61,10 +64,12 @@ export function Field({
           type="text"
           value={display}
           onChange={handleChange}
-          className={prefix ? "!pl-5" : ""}
+          readOnly={locked}
+          aria-readonly={locked}
+          className={`${prefix ? "!pl-5" : ""} ${locked ? "cursor-default !border-dashed !bg-transparent" : ""}`}
         />
         {suffix && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] text-xs font-mono">
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 font-mono text-xs text-[var(--text-muted)]">
             {suffix}
           </span>
         )}

@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 const TOOLTIP_WIDTH = 288;
 const MARGIN = 8;
 
-/** Portal-rendered so the tooltip escapes overflow:auto containers (e.g. the sidebar). */
 export function InfoTip({ content, label = "More information" }: { content: string; label?: string }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
@@ -14,7 +13,6 @@ export function InfoTip({ content, label = "More information" }: { content: stri
 
   useEffect(() => {
     if (!open) return;
-
     const updatePos = () => {
       const el = btnRef.current;
       if (!el) return;
@@ -26,7 +24,6 @@ export function InfoTip({ content, label = "More information" }: { content: stri
       }
       setPos({ top: rect.bottom + 4, left });
     };
-
     updatePos();
     window.addEventListener("scroll", updatePos, true);
     window.addEventListener("resize", updatePos);

@@ -15,8 +15,9 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Equity offer visualizer",
-  description: "Model your option grant, dilution, and exit scenarios",
+  title: "Luminai Offer Tool",
+  description: "Internal offer builder — Luminai recruiting",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

@@ -1,5 +1,5 @@
-import Calculator from "./calculator";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <Calculator />;
+  redirect("/internal");
 }
