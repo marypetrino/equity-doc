@@ -16,9 +16,9 @@ export default async function Gate({
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-6">
-      <div className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-widest">
-        <LuminaiLogo className="h-4 w-auto" />
-        Luminai
+      <div className="flex flex-col items-center gap-3">
+        <LuminaiLogo variant="badge" className="h-12 w-12" />
+        <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-[var(--text-muted)]">Luminai</span>
       </div>
 
       {!opts.google ? (
