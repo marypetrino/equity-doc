@@ -108,9 +108,9 @@ export function OfferView({ terms }: { terms: OfferTerms }) {
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="mb-8">
-        <div className="mb-3 flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-widest text-[var(--text)]">
-          <LuminaiLogo className="h-4 w-auto" />
-          Luminai
+        <div className="mb-3 flex items-center gap-2">
+          <LuminaiLogo variant="badge" className="h-8 w-8" />
+          <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-[var(--text-muted)]">Luminai</span>
         </div>
         <h1 className="text-2xl font-bold tracking-tight">
           {terms.candidateName ? `Your offer, ${terms.candidateName}` : "Your offer"}
